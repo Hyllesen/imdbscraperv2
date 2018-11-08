@@ -3,5 +3,11 @@
     "cheerio": "^1.0.0-rc.2",
     "nightmare": "^3.0.1",
     "request-promise": "^4.2.2"
+  },
+  "devDependencies": {
+    "jest": "^23.6.0"
+  },
+  "scripts": {
+    "test": "jest"
   }
 }

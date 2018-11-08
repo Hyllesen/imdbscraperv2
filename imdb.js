@@ -1,6 +1,7 @@
 const Nightmare = require("nightmare");
-const nightmare = Nightmare({ show: false });
+const nightmare = Nightmare({ show: true });
 const request = require("request-promise");
+const regularRequest = require("request");
 const cheerio = require("cheerio");
 const fs = require("fs");
 
@@ -8,6 +9,7 @@ const sampleResult = {
   title: "Bohemian Rhapsody",
   rank: 1,
   rating: "8.4",
+  mediaviewer: "htttps.....",
   url:
     "https://www.imdb.com/title/tt1727824/?pf_rd_m=A2FGELUUNOQJNL&pf_rd_p=ea4e08e1-c8a3-47b5-ac3a-75026647c16e&pf_rd_r=5TXYH4ZPWKCCG20RYSXS&pf_rd_s=center-1&pf_rd_t=15506&pf_rd_i=moviemeter&ref_=chtmvm_tt_1"
 };
@@ -22,14 +24,14 @@ async function scrape() {
 
   $("table > tbody > tr").each((i, element) => {
     const url =
-      "https://wwww.imdb.com" +
+      "https://www.imdb.com" +
       $(element)
         .find("td.titleColumn > a")
         .attr("href");
 
     const title = $(element)
       .find("td.titleColumn > a")
-      .attr("title");
+      .text();
 
     const rating = $(element)
       .find(".imdbRating")
@@ -49,41 +51,63 @@ async function scrape() {
     scrapingResults.push(scrapingResult);
   });
 
-  console.log(scrapingResults);
+  return scrapingResults;
 }
 
 async function scrapeMediaviewer(url) {
   const result = await request.get(url);
   const $ = await cheerio.load(result);
-  console.log($(".poster > a").attr("href"));
+  return $(".poster > a").attr("href");
 }
 
-async function nightmareScrape(url) {
-  await nightmare.goto(url);
-  await nightmare.click(".poster");
-}
-
-async function getPicture(url) {
-  await nightmare.goto(url);
+async function getPosterUrl(scrapingResult) {
+  console.log(scrapingResult);
+  await nightmare.goto(scrapingResult.mediaviewerUrl);
   const html = await nightmare.evaluate(() => document.body.innerHTML);
 
   const $ = await cheerio.load(html);
 
-  const imageUrl = $(".pswp__img.pswp__img--placeholder").attr("src");
+  const imageUrl = $(
+    "#photo-container > div > div:nth-child(2) > div > div.pswp__scroll-wrap > div.pswp__container > div:nth-child(2) > div > img:nth-child(2)"
+  ).attr("src");
 
-  console.log(imageUrl);
+  // console.log("rank");
+  // console.log(scrapingResults.rank);
 
-  await request.get(imageUrl).pipe(fs.createWriteStream("test.png"));
-
-  // const result = await request.get(url);
+  return imageUrl;
 }
-// nightmareScrape(
-//   "https://www.imdb.com/title/tt1727824/?pf_rd_m=A2FGELUUNOQJNL&pf_rd_p=ea4e08e1-c8a3-47b5-ac3a-75026647c16e&pf_rd_r=X6KZHYS0YZYJY32D2DEK&pf_rd_s=center-1&pf_rd_t=15506&pf_rd_i=moviemeter&ref_=chtmvm_tt_1"
-// );
-//scrape();
-// scrapeMediaviewer(
-//   "https://www.imdb.com/title/tt1727824/?pf_rd_m=A2FGELUUNOQJNL&pf_rd_p=ea4e08e1-c8a3-47b5-ac3a-75026647c16e&pf_rd_r=X6KZHYS0YZYJY32D2DEK&pf_rd_s=center-1&pf_rd_t=15506&pf_rd_i=moviemeter&ref_=chtmvm_tt_1"
-// );
-getPicture(
-  "https://www.imdb.com/title/tt1727824/mediaviewer/rm2115128576?ref_=tt_ov_i"
-);
+
+async function savePicture(scrapingResult) {
+  regularRequest
+    .get(scrapingResult.posterUrl)
+    .pipe(fs.createWriteStream("images/" + scrapingResult.rank + ".png"));
+}
+
+async function main() {
+  const scrapingResults = await scrape();
+  for (var i = 0; i < scrapingResults.length; i++) {
+    try {
+      const mediaviewerUrl = await scrapeMediaviewer(scrapingResults[i].url);
+      scrapingResults[i].mediaviewerUrl =
+        "https://www.imdb.com" + mediaviewerUrl;
+      console.log(scrapingResults[i]);
+      const posterUrl = await getPosterUrl(scrapingResults[i]);
+      scrapingResults[i].posterUrl = posterUrl;
+      await savePicture(scrapingResults[i]);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  console.log(scrapingResults);
+}
+main();
+// getPicture({
+//   title: "Mission - Impossible - Fallout",
+//   rating: "8.0",
+//   rank: "81",
+//   url:
+//     "https://www.imdb.com/title/tt4912910/?pf_rd_m=A2FGELUUNOQJNL&pf_rd_p=ea4e08e1-c8a3-47b5-ac3a-75026647c16e&pf_rd_r=5N2706T5C3G9RKD7SCVB&pf_rd_s=center-1&pf_rd_t=15506&pf_rd_i=moviemeter&ref_=chtmvm_tt_81",
+//   mediaviewerUrl:
+//     "https://www.imdb.com/title/tt4912910/mediaviewer/rm1258310912?ref_=tt_ov_i"
+// });
