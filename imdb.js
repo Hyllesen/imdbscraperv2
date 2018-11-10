@@ -1,5 +1,6 @@
+const async = require("async");
 const Nightmare = require("nightmare");
-const nightmare = Nightmare({ show: true });
+//const nightmare = Nightmare({ show: false });
 const request = require("request-promise");
 const regularRequest = require("request");
 const cheerio = require("cheerio");
@@ -61,7 +62,7 @@ async function scrapeMediaviewer(url) {
 }
 
 async function getPosterUrl(scrapingResult) {
-  console.log(scrapingResult);
+  const nightmare = new Nightmare({ show: true });
   await nightmare.goto(scrapingResult.mediaviewerUrl);
   const html = await nightmare.evaluate(() => document.body.innerHTML);
 
@@ -70,9 +71,6 @@ async function getPosterUrl(scrapingResult) {
   const imageUrl = $(
     "#photo-container > div > div:nth-child(2) > div > div.pswp__scroll-wrap > div.pswp__container > div:nth-child(2) > div > img:nth-child(2)"
   ).attr("src");
-
-  // console.log("rank");
-  // console.log(scrapingResults.rank);
 
   return imageUrl;
 }
@@ -85,29 +83,17 @@ async function savePicture(scrapingResult) {
 
 async function main() {
   const scrapingResults = await scrape();
-  for (var i = 0; i < scrapingResults.length; i++) {
+  async.eachLimit(scrapingResults, 3, async function(scrapingResult) {
     try {
-      const mediaviewerUrl = await scrapeMediaviewer(scrapingResults[i].url);
-      scrapingResults[i].mediaviewerUrl =
-        "https://www.imdb.com" + mediaviewerUrl;
-      console.log(scrapingResults[i]);
-      const posterUrl = await getPosterUrl(scrapingResults[i]);
-      scrapingResults[i].posterUrl = posterUrl;
-      await savePicture(scrapingResults[i]);
+      console.log(scrapingResult);
+      const mediaviewerUrl = await scrapeMediaviewer(scrapingResult.url);
+      scrapingResult.mediaviewerUrl = "https://www.imdb.com" + mediaviewerUrl;
+      const posterUrl = await getPosterUrl(scrapingResult);
+      scrapingResult.posterUrl = posterUrl;
+      await savePicture(scrapingResult);
     } catch (err) {
       console.error(err);
     }
-  }
-
-  console.log(scrapingResults);
+  });
 }
 main();
-// getPicture({
-//   title: "Mission - Impossible - Fallout",
-//   rating: "8.0",
-//   rank: "81",
-//   url:
-//     "https://www.imdb.com/title/tt4912910/?pf_rd_m=A2FGELUUNOQJNL&pf_rd_p=ea4e08e1-c8a3-47b5-ac3a-75026647c16e&pf_rd_r=5N2706T5C3G9RKD7SCVB&pf_rd_s=center-1&pf_rd_t=15506&pf_rd_i=moviemeter&ref_=chtmvm_tt_81",
-//   mediaviewerUrl:
-//     "https://www.imdb.com/title/tt4912910/mediaviewer/rm1258310912?ref_=tt_ov_i"
-// });
